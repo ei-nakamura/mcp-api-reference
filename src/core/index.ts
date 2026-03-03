@@ -1,3 +1,7 @@
+/**
+ * @module core
+ * @description コアモジュールのバレルエクスポート。
+ */
 export { Crawler } from "./crawler.js";
 export type { CrawlResult } from "./crawler.js";
 export { ParserRegistry } from "./parser.js";

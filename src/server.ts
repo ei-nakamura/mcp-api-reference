@@ -1,3 +1,8 @@
+/**
+ * @module server
+ * @description MCPサーバーのセットアップと初期化を担当するモジュール。
+ * 各コアモジュールの生成、パイプラインの実行、MCPツールの登録を行う。
+ */
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs";
@@ -19,9 +24,17 @@ import type { ServerOptions, SiteConfig } from "./types/config.js";
 import type { ServerContext } from "./types/context.js";
 import { Logger } from "./utils/logger.js";
 
+// ESMではrequire()が使えないため、createRequireでpackage.jsonを読み込む
 const _require = createRequire(import.meta.url);
 const { version } = _require("../package.json") as { version: string };
 
+/**
+ * MCPサーバーを生成する。
+ * 各コアモジュールの初期化、パイプラインの実行、MCPツールの登録を行い、
+ * `start()` メソッドを持つオブジェクトを返す。
+ * @param options - サーバー起動オプション
+ * @returns `start()` を呼ぶとstdioトランスポートで接続を開始する
+ */
 export async function createServer(options: ServerOptions): Promise<{ start: () => Promise<void> }> {
   const logger = new Logger(options.logLevel ?? "info");
 
@@ -55,6 +68,11 @@ export async function createServer(options: ServerOptions): Promise<{ start: () 
   };
 }
 
+/**
+ * MCPサーバーに3つのツール (search_docs, get_endpoint, list_apis) を登録する。
+ * @param mcpServer - MCPサーバーインスタンス
+ * @param context - ツールハンドラーに渡すサーバーコンテキスト
+ */
 function registerTools(mcpServer: McpServer, context: ServerContext): void {
   mcpServer.tool(
     "search_docs",
@@ -76,11 +94,20 @@ function registerTools(mcpServer: McpServer, context: ServerContext): void {
   );
 }
 
+/**
+ * プリセット設定とカスタム設定を統合してサイト設定一覧を返す。
+ * カスタム設定がプリセットと同じIDを持つ場合、カスタム設定で上書きされる。
+ * @param options - サーバー起動オプション
+ * @param parserRegistry - プリセットパーサーが登録済みのレジストリ
+ * @param logger - ロガー
+ * @returns 統合されたサイト設定の配列
+ */
 function loadConfigs(
   options: ServerOptions,
   parserRegistry: ParserRegistry,
   logger: Logger
 ): SiteConfig[] {
+  // プリセットから設定を取得
   const presetConfigs = parserRegistry
     .getIds()
     .map((id) => parserRegistry.getConfig(id)!)
@@ -103,6 +130,13 @@ function loadConfigs(
   return [...merged.values()];
 }
 
+/**
+ * カスタムサイト設定ファイルを読み込む。
+ * JSONファイルの `sites` フィールドからSiteConfig配列を取得する。
+ * @param configPath - 設定ファイルのパス
+ * @param logger - ロガー
+ * @returns カスタムサイト設定の配列 (読み込み失敗時は空配列)
+ */
 function loadCustomSites(configPath: string, logger: Logger): SiteConfig[] {
   try {
     const raw = fs.readFileSync(configPath, "utf-8");
@@ -114,6 +148,12 @@ function loadCustomSites(configPath: string, logger: Logger): SiteConfig[] {
   }
 }
 
+/**
+ * デフォルトのキャッシュディレクトリパスを返す。
+ * 環境変数 `MCP_API_REF_CACHE_DIR` が設定されていればそれを使用し、
+ * 未設定の場合は `~/.mcp-api-reference/cache/` を返す。
+ * @returns キャッシュディレクトリの絶対パス
+ */
 export function defaultCacheDir(): string {
   if (process.env["MCP_API_REF_CACHE_DIR"]) return process.env["MCP_API_REF_CACHE_DIR"]!;
   const home = process.env["HOME"] ?? process.env["USERPROFILE"] ?? os.homedir();

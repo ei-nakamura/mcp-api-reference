@@ -1,5 +1,16 @@
+/**
+ * @module presets/kintone/config
+ * @description kintone REST APIプリセットの設定。
+ * cybozu.dev上のkintone REST APIリファレンスをクロール対象として定義する。
+ */
 import { PresetConfig } from "../../types/config.js";
 
+/**
+ * kintone REST APIのプリセット設定。
+ * - クロール対象: cybozu.dev/ja/kintone/docs/rest-api/ 配下
+ * - 除外: overview, changelog ページ
+ * - 最大200ページ、リクエスト間隔1000ms
+ */
 export const kintoneConfig: PresetConfig = {
   id: "kintone",
   name: "kintone REST API",

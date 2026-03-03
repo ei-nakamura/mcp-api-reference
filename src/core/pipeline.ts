@@ -1,3 +1,9 @@
+/**
+ * @module pipeline
+ * @description 初期化パイプラインモジュール。
+ * サーバー起動時にクロール → パース → インデックス構築 → キャッシュ保存の
+ * 一連の処理を実行する。キャッシュが有効な場合はキャッシュからの復元を行う。
+ */
 import { Crawler } from "./crawler.js";
 import { ParserRegistry } from "./parser.js";
 import { Indexer } from "./indexer.js";
@@ -8,6 +14,7 @@ import { EndpointDocument } from "../types/document.js";
 import { Logger } from "../utils/logger.js";
 import { hashConfig } from "../utils/hash.js";
 
+/** 初期化パイプラインの依存オブジェクト */
 export interface InitPipelineDeps {
   crawler: Crawler;
   parserRegistry: ParserRegistry;
@@ -17,9 +24,20 @@ export interface InitPipelineDeps {
   logger: Logger;
 }
 
+/**
+ * 初期化パイプライン。
+ * サイト設定ごとにキャッシュの有効性を確認し、
+ * 有効ならキャッシュから復元、無効ならクロール→パース→インデックス構築を実行する。
+ */
 export class InitPipeline {
   constructor(private deps: InitPipelineDeps) {}
 
+  /**
+   * 全サイトの初期化を実行する。
+   * 各サイトで失敗しても他のサイトの初期化は継続する。
+   * @param configs - サイト設定の配列
+   * @param refreshTarget - 強制再取得対象のAPI ID ("all" で全API)
+   */
   async initializeAll(configs: SiteConfig[], refreshTarget?: string): Promise<void> {
     for (const config of configs) {
       const forceRefresh = refreshTarget === config.id || refreshTarget === "all";
@@ -31,6 +49,10 @@ export class InitPipeline {
     }
   }
 
+  /**
+   * 単一サイトの初期化を実行する。
+   * キャッシュが有効かつ強制更新でない場合はキャッシュから復元する。
+   */
   private async initializeSite(config: SiteConfig, forceRefresh: boolean): Promise<void> {
     const configHash = hashConfig(config);
     if (!forceRefresh) {
@@ -43,6 +65,11 @@ export class InitPipeline {
     await this.runPipeline(config, configHash);
   }
 
+  /**
+   * クロール → パース → インデックス構築 → キャッシュ保存の一連の処理を実行する。
+   * @param config - サイト設定
+   * @param configHash - 設定のハッシュ値 (キャッシュの無効化判定用)
+   */
   private async runPipeline(config: SiteConfig, configHash: string): Promise<void> {
     const { crawler, parserRegistry, store, indexer, cacheManager, logger } = this.deps;
 
@@ -82,6 +109,11 @@ export class InitPipeline {
     });
   }
 
+  /**
+   * キャッシュからドキュメントとインデックスを復元する。
+   * @param config - サイト設定
+   * @returns 復元に成功した場合true
+   */
   private async loadFromCache(config: SiteConfig): Promise<boolean> {
     const { store, indexer, cacheManager, logger } = this.deps;
     const configHash = hashConfig(config);

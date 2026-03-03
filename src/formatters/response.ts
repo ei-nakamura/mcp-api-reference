@@ -1,16 +1,38 @@
+/**
+ * @module formatters/response
+ * @description MCPツールのレスポンスフォーマッター。
+ * 内部データ構造をLLMに最適化されたMarkdownテキストに変換する。
+ * トークン効率のため各セクションに最大長を設定し、次のアクション提案を含める。
+ */
 import { EndpointDocument, ParameterInfo, FieldInfo, ExampleInfo } from "../types/document.js";
 import { SearchHit } from "../core/indexer.js";
 import { ApiSummary, ApiDetail } from "../core/store.js";
 
-const MAX_PARAMS_IN_DETAIL = 30;
-const MAX_RESPONSE_FIELDS = 20;
-const MAX_EXAMPLE_LENGTH = 1500;
-const MAX_DESCRIPTION_LENGTH = 300;
-const MAX_NOTES = 5;
-const MAX_ENDPOINTS_PER_CATEGORY = 10;
-const MAX_TOTAL_ENDPOINTS_IN_LIST = 50;
+// レスポンスのトークン効率を制御する上限値
+const MAX_PARAMS_IN_DETAIL = 30;        // エンドポイント詳細に含めるパラメータ数の上限
+const MAX_RESPONSE_FIELDS = 20;          // レスポンスフィールド数の上限
+const MAX_EXAMPLE_LENGTH = 1500;         // サンプルコードの最大文字数
+const MAX_DESCRIPTION_LENGTH = 300;      // 説明文の最大文字数
+const MAX_NOTES = 5;                     // 注記の最大件数
+const MAX_ENDPOINTS_PER_CATEGORY = 10;   // カテゴリ内のエンドポイント表示数
+const MAX_TOTAL_ENDPOINTS_IN_LIST = 50;  // 一覧に表示するエンドポイント総数
 
+/**
+ * MCPツールレスポンスのフォーマッター。
+ * 検索結果・エンドポイント詳細・API一覧・エラーメッセージを
+ * LLMが理解しやすいMarkdownテキストに整形する。
+ */
 export class ResponseFormatter {
+  /**
+   * 検索結果をフォーマットする。
+   * 各ヒットにメソッド・パス・タイトル・概要・主要パラメータを含め、
+   * get_endpoint()への誘導を付与する。
+   * @param query - 検索クエリ
+   * @param hits - 検索ヒット配列
+   * @param docs - ドキュメントIDをキーとしたエンドポイントドキュメントのマップ
+   * @param api - 検索対象API (省略時は全API)
+   * @returns フォーマット済みテキスト
+   */
   formatSearchResults(
     query: string,
     hits: SearchHit[],
@@ -40,6 +62,12 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /**
+   * エンドポイントの詳細情報をMarkdown形式でフォーマットする。
+   * パラメータテーブル・レスポンスフィールド・サンプルコード・注記・権限を含む。
+   * @param doc - エンドポイントドキュメント
+   * @returns フォーマット済みMarkdownテキスト
+   */
   formatEndpointDetail(doc: EndpointDocument): string {
     const lines: string[] = [];
     lines.push(`## ${doc.method} ${doc.path} — ${doc.title}\n`);
@@ -89,6 +117,10 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /**
+   * 利用可能なAPI一覧をフォーマットする。
+   * 各APIのID・エンドポイント数・カテゴリを表示し、次のアクション提案を含める。
+   */
   formatApiList(summaries: ApiSummary[]): string {
     const lines: string[] = [`Available APIs (${summaries.length} total):\n`];
 
@@ -103,6 +135,10 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /**
+   * 指定APIのカテゴリ別エンドポイント一覧をフォーマットする。
+   * 表示上限に達した場合は省略され、search_docsへの誘導を含める。
+   */
   formatApiDetail(detail: ApiDetail): string {
     const lines: string[] = [`## ${detail.apiId} (${detail.endpointCount} endpoints)\n`];
 
@@ -130,6 +166,10 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /**
+   * エラーメッセージをフォーマットする。
+   * 任意で解決策の提案を付与できる。
+   */
   formatError(message: string, suggestions?: string[]): string {
     const lines: string[] = [`Error: ${message}`];
     if (suggestions && suggestions.length > 0) {
@@ -138,6 +178,10 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /**
+   * エンドポイント未検出時のメッセージをフォーマットする。
+   * 類似エンドポイントの提案とsearch_docsへの誘導を含める。
+   */
   formatNotFound(
     api: string,
     endpoint: string,
@@ -153,6 +197,7 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /** パラメータ情報をMarkdownテーブルに変換する */
   private formatParamTable(params: ParameterInfo[]): string {
     if (params.length === 0) return "";
     const lines: string[] = [
@@ -167,6 +212,7 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /** レスポンスフィールド情報をMarkdownテーブルに変換する */
   private formatFieldTable(fields: FieldInfo[]): string {
     if (fields.length === 0) return "";
     const lines: string[] = [
@@ -180,6 +226,7 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /** サンプルコードをMarkdownコードブロックに変換する */
   private formatExamples(examples: ExampleInfo[]): string {
     const lines: string[] = [];
     for (const ex of examples) {
@@ -192,6 +239,7 @@ export class ResponseFormatter {
     return lines.join("\n");
   }
 
+  /** テキストを指定文字数で切り詰める。超過時は末尾に "..." を付与する。 */
   private truncate(text: string, maxLen: number): string {
     return text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
   }

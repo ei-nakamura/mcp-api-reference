@@ -1,20 +1,38 @@
+/**
+ * @module crawler
+ * @description Webクローラーモジュール。
+ * 指定されたURLからAPIドキュメントページを巡回し、HTMLを収集する。
+ * robots.txtの遵守、リトライ制御、リクエスト間隔の制御を行う。
+ */
 import { Logger } from "../utils/logger.js";
 import { CrawlConfig } from "../types/config.js";
 import { CrawlError } from "../types/errors.js";
 import { matchesPatterns } from "../utils/glob.js";
 
+/** クロール結果 */
 export interface CrawlResult {
-  pages: Map<string, string>;   // URL → HTML
+  /** 取得したページの URL → HTML のマッピング */
+  pages: Map<string, string>;
+  /** 正常に取得できたページ数 */
   totalFetched: number;
+  /** スキップしたURL数 (訪問済み・除外パターン・エラー等) */
   skipped: number;
 }
 
+/** robots.txtから解析した単一のルール */
 interface RobotsRule {
+  /** 対象パスのプレフィックス */
   path: string;
+  /** true: Allow / false: Disallow */
   allowed: boolean;
 }
 
+/**
+ * Webクローラー。
+ * 幅優先探索でページを巡回し、include/excludeパターンとrobots.txtに基づいてフィルタリングする。
+ */
 export class Crawler {
+  /** HTTPリクエストに使用するUser-Agent */
   private readonly userAgent = "mcp-api-reference/1.0";
   private logger: Logger;
 
@@ -22,6 +40,13 @@ export class Crawler {
     this.logger = logger;
   }
 
+  /**
+   * 指定された設定に基づいてWebページをクロールする。
+   * 幅優先探索でリンクを辿り、ページのHTMLを収集する。
+   * @param config - クロール設定 (開始URL、パターン、最大ページ数等)
+   * @param onProgress - 進捗コールバック (取得済み数, 推定総数)
+   * @returns クロール結果
+   */
   async crawl(
     config: CrawlConfig,
     onProgress?: (fetched: number, total: number) => void
@@ -79,6 +104,13 @@ export class Crawler {
     };
   }
 
+  /**
+   * 単一ページのHTMLを取得する。
+   * 5xxエラー時は最大2回リトライし、30秒でタイムアウトする。
+   * @param url - 取得対象のURL
+   * @returns HTMLテキスト
+   * @throws {CrawlError} 取得失敗時
+   */
   private async fetchPage(url: string): Promise<string> {
     const MAX_RETRIES = 2;
     const RETRY_DELAY_MS = 3000;
@@ -131,6 +163,12 @@ export class Crawler {
     throw new CrawlError("Max retries exceeded", url);
   }
 
+  /**
+   * 対象オリジンのrobots.txtを取得・解析する。
+   * 取得失敗時は空のルール配列を返す (全URL許可扱い)。
+   * @param origin - オリジンURL (例: "https://example.com")
+   * @returns robots.txtのルール配列
+   */
   private async fetchRobotsTxt(origin: string): Promise<RobotsRule[]> {
     const robotsUrl = `${origin}/robots.txt`;
 
@@ -156,6 +194,11 @@ export class Crawler {
     }
   }
 
+  /**
+   * robots.txtのテキストを解析し、User-Agent: * に適用されるルールを抽出する。
+   * @param text - robots.txtの生テキスト
+   * @returns Allow/Disallowルールの配列
+   */
   private parseRobotsTxt(text: string): RobotsRule[] {
     const rules: RobotsRule[] = [];
     const lines = text.split("\n").map((l) => l.trim());
@@ -182,6 +225,13 @@ export class Crawler {
     return rules;
   }
 
+  /**
+   * HTMLからリンク (<a href>) を抽出する。
+   * フラグメントは除去し、http/httpsスキームのリンクのみを返す。
+   * @param html - HTML文字列
+   * @param baseUrl - 相対URLを解決するための基準URL
+   * @returns 抽出されたURLの配列
+   */
   private extractLinks(html: string, baseUrl: string): string[] {
     const links: string[] = [];
     const hrefRegex = /<a\s[^>]*href=["']([^"']+)["'][^>]*>/gi;
@@ -199,13 +249,23 @@ export class Crawler {
           links.push(url.toString());
         }
       } catch {
-        // Invalid URL — skip
+        // 不正なURL — スキップ
       }
     }
 
     return links;
   }
 
+  /**
+   * 指定URLを訪問すべきかどうかを判定する。
+   * 訪問済み、最大ページ数超過、別オリジン、パターン不一致、robots.txt拒否の場合はfalseを返す。
+   * @param url - 判定対象のURL
+   * @param config - クロール設定
+   * @param robots - robots.txtルール
+   * @param visited - 訪問済みURLセット
+   * @param startOrigin - 開始URLのオリジン
+   * @returns 訪問すべきならtrue
+   */
   private shouldVisit(
     url: string,
     config: CrawlConfig,
@@ -238,6 +298,7 @@ export class Crawler {
     return true;
   }
 
+  /** 指定ミリ秒間待機する */
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }

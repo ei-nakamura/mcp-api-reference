@@ -1,3 +1,9 @@
+/**
+ * @module presets/kintone/parser
+ * @description kintone REST APIドキュメント専用のHTMLパーサー。
+ * cybozu.devのkintone APIリファレンスページから、HTTPメソッド・パス・パラメータ・
+ * レスポンスフィールド・サンプルコード等を抽出する。
+ */
 import * as cheerio from "cheerio";
 import { SiteParser, ParseResult } from "../../core/parser.js";
 import {
@@ -9,9 +15,21 @@ import {
 } from "../../types/document.js";
 import { ParseError } from "../../types/errors.js";
 
+/**
+ * kintone REST APIドキュメントのHTMLパーサー。
+ * cybozu.devのHTML構造に特化した抽出ロジックを持つ。
+ */
 export class KintoneParser implements SiteParser {
   readonly name = "kintone";
 
+  /**
+   * kintone APIリファレンスページのHTMLからエンドポイント情報を抽出する。
+   * HTTPメソッドまたはパスが取得できないページ (概要ページ等) は空配列を返す。
+   * @param html - ページのHTML
+   * @param pageUrl - ページのURL
+   * @param apiId - API識別子
+   * @returns パース結果
+   */
   parseEndpoint(html: string, pageUrl: string, apiId: string): ParseResult {
     const $ = cheerio.load(html);
 
@@ -52,6 +70,10 @@ export class KintoneParser implements SiteParser {
     return { endpoints: [doc] };
   }
 
+  /**
+   * API仕様テーブル (最初の<table>) からHTTPメソッド・URL・認証方式を抽出する。
+   * テーブルの各行のラベル (HTTPメソッド / URL / 認証) を判定して値を取り出す。
+   */
   private parseSpecTable(
     $: cheerio.CheerioAPI
   ): { method?: string; path?: string; authentication: string[] } {
@@ -87,6 +109,7 @@ export class KintoneParser implements SiteParser {
     return result;
   }
 
+  /** 「パラメーター名」ヘッダーを持つテーブルからリクエストパラメータを抽出する */
   private parseKintoneParamTable($: cheerio.CheerioAPI): ParameterInfo[] {
     const params: ParameterInfo[] = [];
 
@@ -119,6 +142,7 @@ export class KintoneParser implements SiteParser {
     return params;
   }
 
+  /** 「プロパティ名」ヘッダーを持つテーブルからレスポンスフィールドを抽出する */
   private parseKintoneResponseTable($: cheerio.CheerioAPI): FieldInfo[] {
     const fields: FieldInfo[] = [];
 
@@ -150,6 +174,7 @@ export class KintoneParser implements SiteParser {
     return fields;
   }
 
+  /** kintoneの日本語型名 (数値, 文字列等) を英語型名 (number, string等) に変換する */
   private normalizeType(raw: string): string {
     const map: Record<string, string> = {
       数値: "number",
@@ -164,6 +189,10 @@ export class KintoneParser implements SiteParser {
     return map[raw.trim()] ?? raw;
   }
 
+  /**
+   * <pre><code>要素からリクエスト/レスポンスのサンプルコードを抽出する。
+   * curlコマンドとJSONブロックを対象とし、JavaScriptコードはスキップする。
+   */
   private parseKintoneExamples($: cheerio.CheerioAPI): ExampleInfo[] {
     const examples: ExampleInfo[] = [];
 
@@ -194,6 +223,7 @@ export class KintoneParser implements SiteParser {
     return examples;
   }
 
+  /** h1見出し直後のテキスト要素からAPIの説明文を抽出する (最大500文字) */
   private extractDescription($: cheerio.CheerioAPI): string {
     const h1 = $("h1").first();
     let description = "";
@@ -209,6 +239,7 @@ export class KintoneParser implements SiteParser {
     return description.trim().slice(0, 500);
   }
 
+  /** 「アクセス権」「権限」見出し配下からアクセス権情報を抽出する */
   private parsePermissions($: cheerio.CheerioAPI): string[] {
     const permissions: string[] = [];
     $("h2, h3").each((_i, el) => {
@@ -225,6 +256,7 @@ export class KintoneParser implements SiteParser {
     return permissions;
   }
 
+  /** 「補足」「注意」「制限」見出し配下から注記情報を抽出する (各項目最大200文字) */
   private parseNotes($: cheerio.CheerioAPI): string[] {
     const notes: string[] = [];
     $("h2, h3").each((_i, el) => {

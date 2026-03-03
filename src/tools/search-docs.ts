@@ -1,7 +1,13 @@
+/**
+ * @module tools/search-docs
+ * @description search_docs MCPツールの実装。
+ * キーワードによる全文検索を行い、マッチするエンドポイントの一覧を返す。
+ */
 import { z } from "zod";
 import type { EndpointDocument } from "../types/document.js";
 import type { ServerContext, ToolResult } from "../types/context.js";
 
+/** search_docsツールの入力スキーマ定義 */
 export const searchDocsSchema = {
   query: z.string().describe("Search query (e.g., 'create record', 'レコード登録')"),
   api: z.string().optional().describe(
@@ -12,6 +18,14 @@ export const searchDocsSchema = {
   ),
 };
 
+/**
+ * search_docsツールのハンドラー。
+ * クエリ文字列でインデックスを検索し、マッチするエンドポイントの概要一覧を返す。
+ * 指定APIが存在しない場合や結果が0件の場合は、適切なエラーメッセージと提案を返す。
+ * @param input - ツール入力 (query, api, limit)
+ * @param context - サーバーコンテキスト
+ * @returns MCPツール結果
+ */
 export async function handleSearchDocs(
   input: { query: string; api?: string; limit?: number },
   context: ServerContext
