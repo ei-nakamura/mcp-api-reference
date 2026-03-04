@@ -5,7 +5,6 @@
  * ID検索・API単位の取得・メタデータ管理・ディスク永続化を提供する。
  */
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { EndpointDocument } from "../types/document.js";
 import { Logger } from "../utils/logger.js";
 
@@ -17,7 +16,7 @@ export interface ApiMetadata {
 }
 
 /** API一覧表示用のサマリー情報 */
-export interface ApiSummary extends ApiMetadata {}
+export type ApiSummary = ApiMetadata;
 
 /** API詳細情報 (メタデータ + 全エンドポイント) */
 export interface ApiDetail extends ApiMetadata {

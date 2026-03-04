@@ -13,7 +13,6 @@ import {
   ExampleInfo,
   HttpMethod,
 } from "../../types/document.js";
-import { ParseError } from "../../types/errors.js";
 
 /**
  * kintone REST APIドキュメントのHTMLパーサー。
