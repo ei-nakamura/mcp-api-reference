@@ -4,7 +4,7 @@
  * Strategyパターンにより、APIサイトごとに異なるHTMLパーサーを差し替え可能にする。
  */
 import { EndpointDocument } from "../types/document.js";
-import { PresetConfig } from "../types/config.js";
+import { SiteConfig } from "../types/config.js";
 import { Logger } from "../utils/logger.js";
 
 /** パース結果。1ページから抽出されたエンドポイント情報の配列を保持する。 */
@@ -42,18 +42,18 @@ export interface SiteParser {
 export class ParserRegistry {
   /** API ID → パーサーのマッピング */
   private parsers: Map<string, SiteParser> = new Map();
-  /** API ID → プリセット設定のマッピング */
-  private configs: Map<string, PresetConfig> = new Map();
+  /** API ID → サイト設定のマッピング */
+  private configs: Map<string, SiteConfig> = new Map();
 
   constructor(private logger: Logger) {}
 
   /**
    * パーサーをレジストリに登録する。
    * @param id - API識別子
-   * @param config - プリセット設定
+   * @param config - サイト設定（PresetConfig も受け付ける）
    * @param parser - パーサー実装
    */
-  register(id: string, config: PresetConfig, parser: SiteParser): void {
+  register(id: string, config: SiteConfig, parser: SiteParser): void {
     this.parsers.set(id, parser);
     this.configs.set(id, config);
     this.logger.debug(`Parser registered: ${id}`);
@@ -64,8 +64,8 @@ export class ParserRegistry {
     return this.parsers.get(id);
   }
 
-  /** 指定IDのプリセット設定を取得する */
-  getConfig(id: string): PresetConfig | undefined {
+  /** 指定IDのサイト設定を取得する */
+  getConfig(id: string): SiteConfig | undefined {
     return this.configs.get(id);
   }
 

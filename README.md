@@ -1,66 +1,68 @@
 # mcp-api-reference
 
-API リファレンスドキュメントを自動でクロール・インデックス化し、LLM から検索・参照できるようにする MCP (Model Context Protocol) サーバーです。
+[日本語版 (Japanese)](README.ja.md)
 
-## 課題と解決策
+An MCP (Model Context Protocol) server that automatically crawls, indexes, and serves API reference documentation for LLMs.
 
-LLM が API を利用するコードを生成する際、以下の問題が発生します。
+## Problem & Solution
 
-- **ハルシネーション**: 存在しないエンドポイントやパラメータを生成してしまう
-- **情報の陳腐化**: トレーニングデータに含まれない最新の API 仕様を参照できない
-- **非効率なコンテキスト消費**: ドキュメント全文を渡すとトークンを浪費する
+When LLMs generate code that uses APIs, the following problems occur:
 
-本ツールは、API リファレンスサイトの URL を指定するだけで、自動的にドキュメントをクロール・解析・インデックス化し、MCP ツール経由でトークン効率の良い検索結果を提供します。
+- **Hallucination**: Generating non-existent endpoints or parameters
+- **Stale information**: Unable to reference the latest API specs not included in training data
+- **Inefficient context consumption**: Passing entire documentation wastes tokens
 
-## 提供する MCP ツール
+This tool automatically crawls, parses, and indexes API reference sites just by specifying a URL, then provides token-efficient search results via MCP tools.
 
-| ツール | 説明 | 主な入力 |
-|--------|------|----------|
-| `search_docs` | キーワードで全文検索 | `query`, `api`(任意), `limit`(1-20) |
-| `get_endpoint` | 特定エンドポイントの詳細取得 | `api`, `endpoint`(パス), `method` |
-| `list_apis` | 利用可能な API・カテゴリ一覧 | `api`(任意) |
+## MCP Tools
 
-## 必要要件
+| Tool | Description | Main Inputs |
+|------|-------------|-------------|
+| `search_docs` | Full-text search by keyword | `query`, `api` (optional), `limit` (1-20) |
+| `get_endpoint` | Get details of a specific endpoint | `api`, `endpoint` (path), `method` |
+| `list_apis` | List available APIs and categories | `api` (optional) |
+
+## Requirements
 
 - Node.js >= 18.0.0
 
-## インストール
+## Installation
 
 ```bash
 npm install
 npm run build
 ```
 
-## 使い方
+## Usage
 
-### MCP サーバーとして起動
+### Start as MCP Server
 
 ```bash
 node dist/index.js
 ```
 
-### CLI オプション
+### CLI Options
 
 ```bash
-# カスタム設定ファイルを指定
+# Specify a custom config file
 node dist/index.js --config ./my-sites.json
 
-# 特定 API のキャッシュを更新
+# Refresh cache for a specific API
 node dist/index.js --refresh kintone
 
-# キャッシュを全削除
+# Clear all cache
 node dist/index.js --clear-cache
 ```
 
-| オプション | 短縮形 | 説明 |
-|-----------|--------|------|
-| `--config <path>` | `-c` | カスタムサイト設定ファイルのパス |
-| `--refresh <api-id>` | `-r` | 指定 API のドキュメントを再取得 |
-| `--clear-cache` | - | キャッシュを全削除して終了 |
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--config <path>` | `-c` | Path to custom site config file |
+| `--refresh <api-id>` | `-r` | Re-fetch documentation for the specified API |
+| `--clear-cache` | - | Clear all cache and exit |
 
-### Claude Desktop との連携
+### Claude Desktop Integration
 
-`claude_desktop_config.json` に以下を追加します。
+Add the following to `claude_desktop_config.json`:
 
 ```json
 {
@@ -73,15 +75,19 @@ node dist/index.js --clear-cache
 }
 ```
 
-## プリセット
+## Presets
 
 ### kintone REST API
 
-kintone REST API のパーサーがプリセットとして組み込まれています。追加設定なしで利用できます。
+A parser for the kintone REST API is built in as a preset. No additional configuration required.
 
-## カスタムサイトの追加
+### Backlog API
 
-`--config` オプションで JSON ファイルを指定することで、任意の API ドキュメントサイトを追加できます。
+A parser for the Backlog API is also available as a preset. No additional configuration required.
+
+## Custom Sites
+
+You can add any API documentation site by specifying a JSON file with the `--config` option.
 
 ```json
 {
@@ -114,66 +120,68 @@ kintone REST API のパーサーがプリセットとして組み込まれてい
 }
 ```
 
-## プロジェクト構成
+## Project Structure
 
 ```
 src/
-├── index.ts              # CLI エントリポイント
-├── server.ts             # MCP サーバー初期化・ツール登録
+├── index.ts              # CLI entry point
+├── server.ts             # MCP server initialization and tool registration
 ├── core/
-│   ├── crawler.ts        # robots.txt 対応の Web クローラー
-│   ├── parser.ts         # パーサーレジストリ
-│   ├── indexer.ts        # MiniSearch による全文検索インデックス
-│   ├── store.ts          # ドキュメントストア
-│   ├── cache.ts          # TTL ベースのキャッシュ管理
-│   └── pipeline.ts       # クロール → 解析 → インデックスのパイプライン
+│   ├── crawler.ts        # Web crawler with robots.txt support
+│   ├── parser.ts         # Parser registry
+│   ├── generic-parser.ts # Generic HTML parser (CSS selector-based)
+│   ├── indexer.ts        # Full-text search index via MiniSearch
+│   ├── store.ts          # Document store
+│   ├── cache.ts          # TTL-based cache management
+│   └── pipeline.ts       # Crawl → parse → index pipeline
 ├── tools/
-│   ├── search-docs.ts    # search_docs ツール
-│   ├── get-endpoint.ts   # get_endpoint ツール
-│   └── list-apis.ts      # list_apis ツール
+│   ├── search-docs.ts    # search_docs tool
+│   ├── get-endpoint.ts   # get_endpoint tool
+│   └── list-apis.ts      # list_apis tool
 ├── presets/
-│   └── kintone/          # kintone プリセット
+│   ├── kintone/          # kintone preset
+│   └── backlog/          # Backlog preset
 ├── formatters/
-│   └── response.ts       # MCP レスポンスフォーマッター
-├── types/                # 型定義
-└── utils/                # ユーティリティ (ロガー, glob, ハッシュ)
+│   └── response.ts       # MCP response formatter
+├── types/                # Type definitions
+└── utils/                # Utilities (logger, glob, hash)
 ```
 
-## 開発
+## Development
 
 ```bash
-# ウォッチモードでビルド
+# Build in watch mode
 npm run dev
 
-# テスト実行
+# Run tests
 npm test
 
-# テスト (ウォッチモード)
+# Run tests (watch mode)
 npm run test:watch
 
-# 型チェック
+# Type check
 npm run typecheck
 
-# リント
+# Lint
 npm run lint
 ```
 
-## 技術スタック
+## Tech Stack
 
-- **@modelcontextprotocol/sdk** - MCP サーバー実装
-- **cheerio** - HTML パーサー
-- **minisearch** - 全文検索エンジン (日本語トークナイズ対応)
-- **zod** - スキーマバリデーション
-- **tsup** - TypeScript バンドラー
-- **vitest** - テストフレームワーク
+- **@modelcontextprotocol/sdk** - MCP server implementation
+- **cheerio** - HTML parser
+- **minisearch** - Full-text search engine (with Japanese tokenization support)
+- **zod** - Schema validation
+- **tsup** - TypeScript bundler
+- **vitest** - Test framework
 
-## 環境変数
+## Environment Variables
 
-| 変数名 | 説明 | デフォルト |
-|--------|------|-----------|
-| `MCP_API_REF_CACHE_DIR` | キャッシュディレクトリのパス | `~/.mcp-api-reference/cache/` |
-| `MCP_API_REF_CONFIG` | サイト設定ファイルのパス | - |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_API_REF_CACHE_DIR` | Path to cache directory | `~/.mcp-api-reference/cache/` |
+| `MCP_API_REF_CONFIG` | Path to site config file | - |
 
-## ライセンス
+## License
 
 MIT

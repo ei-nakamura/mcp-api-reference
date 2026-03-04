@@ -7,6 +7,8 @@ import { ParserRegistry } from "../core/parser.js";
 import { Logger } from "../utils/logger.js";
 import { kintoneConfig } from "./kintone/config.js";
 import { KintoneParser } from "./kintone/parser.js";
+import { backlogConfig } from "./backlog/config.js";
+import { BacklogParser } from "./backlog/parser.js";
 
 /**
  * 全プリセットをParserRegistryに登録して返す。
@@ -18,8 +20,11 @@ export function createRegistryWithPresets(logger: Logger): ParserRegistry {
   const registry = new ParserRegistry(logger);
   const kintoneParser = new KintoneParser();
   registry.register(kintoneConfig.id, kintoneConfig, kintoneParser);
+  registry.register(backlogConfig.id, backlogConfig, new BacklogParser());
   return registry;
 }
 
 export { kintoneConfig } from "./kintone/config.js";
 export { KintoneParser } from "./kintone/parser.js";
+export { backlogConfig } from "./backlog/config.js";
+export { BacklogParser } from "./backlog/parser.js";

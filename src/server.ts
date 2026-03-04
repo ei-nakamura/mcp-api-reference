@@ -16,11 +16,13 @@ import { DocumentStore } from "./core/store.js";
 import { CacheManager } from "./core/cache.js";
 import { InitPipeline } from "./core/pipeline.js";
 import { ResponseFormatter } from "./formatters/response.js";
+import { GenericParser } from "./core/generic-parser.js";
 import { createRegistryWithPresets } from "./presets/index.js";
 import { handleSearchDocs, searchDocsSchema } from "./tools/search-docs.js";
 import { handleGetEndpoint, getEndpointSchema } from "./tools/get-endpoint.js";
 import { handleListApis, listApisSchema } from "./tools/list-apis.js";
 import type { ServerOptions, SiteConfig } from "./types/config.js";
+import { SiteConfigSchema } from "./types/config.js";
 import type { ServerContext } from "./types/context.js";
 import { Logger } from "./utils/logger.js";
 
@@ -117,6 +119,13 @@ function loadConfigs(
   let customConfigs: SiteConfig[] = [];
   if (configPath) {
     customConfigs = loadCustomSites(configPath, logger);
+    for (const config of customConfigs) {
+      if (config.parser.type === "generic") {
+        const gp = new GenericParser({ name: config.id, ...config.parser.selectors });
+        parserRegistry.register(config.id, config, gp);
+      }
+      // preset type は既存コードが処理
+    }
   }
 
   const merged = new Map<string, SiteConfig>();
@@ -140,13 +149,22 @@ function loadConfigs(
 function loadCustomSites(configPath: string, logger: Logger): SiteConfig[] {
   try {
     const raw = fs.readFileSync(configPath, "utf-8");
-    const data = JSON.parse(raw) as { sites?: SiteConfig[] };
-    return data.sites ?? [];
+    const data = JSON.parse(raw) as { sites?: unknown };
+    const parsed = SiteConfigSchema.array().safeParse(data.sites ?? []);
+    if (!parsed.success) {
+      logger.warn(`Invalid custom config: ${parsed.error.message}`);
+      return [];
+    }
+    return parsed.data;
   } catch (err) {
     logger.warn(`Failed to load custom config from ${configPath}: ${String(err)}`);
     return [];
   }
 }
+
+// テスト用エクスポート (本番コードは createServer 経由で使用)
+export const loadCustomSitesForTest = loadCustomSites;
+export const loadConfigsForTest = loadConfigs;
 
 /**
  * デフォルトのキャッシュディレクトリパスを返す。
