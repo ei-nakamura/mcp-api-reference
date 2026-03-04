@@ -102,11 +102,11 @@ export class InitPipeline {
     const cacheDir = cacheManager.getCacheDir(config.id);
     cacheManager.ensureCacheDir(config.id);  // 初回起動時にディレクトリが存在しない場合に備えて事前作成
     store.saveToDisk(config.id, `${cacheDir}/documents.json`);
-    indexer.saveToDisk(config.id, `${cacheDir}/index.json`);
     cacheManager.save(config.id, configHash, {
       documents,
-      indexData: {},  // indexer.saveToDisk()が既にファイル保存済み
+      indexData: {},  // meta.json保存用。index.jsonは次行のsaveToDiskで上書きされる
     });
+    indexer.saveToDisk(config.id, `${cacheDir}/index.json`);  // 有効なMiniSearch JSONで上書き
   }
 
   /**
