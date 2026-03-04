@@ -2,12 +2,42 @@
  * @module crawler
  * @description Webクローラーモジュール。
  * 指定されたURLからAPIドキュメントページを巡回し、HTMLを収集する。
- * robots.txtの遵守、リトライ制御、リクエスト間隔の制御を行う。
+ * robots.txtの遵守、リトライ制御、リクエスト間隔の制御、SSRF防止を行う。
  */
+import * as dns from "node:dns/promises";
+import * as net from "node:net";
 import { Logger } from "../utils/logger.js";
 import { CrawlConfig } from "../types/config.js";
 import { CrawlError } from "../types/errors.js";
 import { matchesPatterns } from "../utils/glob.js";
+
+/** 1レスポンスあたりの最大サイズ (5MB) */
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * IPアドレスがプライベート/予約済みアドレスかどうかを判定する。
+ * SSRF防止のため、内部ネットワークへのリクエストをブロックする。
+ */
+export function isPrivateIP(ip: string): boolean {
+  if (net.isIPv4(ip)) {
+    const parts = ip.split(".").map(Number);
+    if (parts[0] === 127) return true;                                         // 127.0.0.0/8 (loopback)
+    if (parts[0] === 10) return true;                                          // 10.0.0.0/8
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;    // 172.16.0.0/12
+    if (parts[0] === 192 && parts[1] === 168) return true;                    // 192.168.0.0/16
+    if (parts[0] === 169 && parts[1] === 254) return true;                    // 169.254.0.0/16 (link-local)
+    if (parts[0] === 0) return true;                                           // 0.0.0.0/8
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const normalized = ip.toLowerCase();
+    if (normalized === "::1" || normalized === "::") return true;               // loopback / unspecified
+    if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true; // ULA (fc00::/7)
+    if (normalized.startsWith("fe80")) return true;                            // link-local (fe80::/10)
+    return false;
+  }
+  return false;
+}
 
 /** クロール結果 */
 export interface CrawlResult {
@@ -51,6 +81,9 @@ export class Crawler {
     config: CrawlConfig,
     onProgress?: (fetched: number, total: number) => void
   ): Promise<CrawlResult> {
+    // SSRF防止: 開始URLのホスト名を検証
+    await this.validateUrlSafety(config.startUrl);
+
     const pages = new Map<string, string>();
     const visited = new Set<string>();
     const queue: string[] = [config.startUrl];
@@ -107,6 +140,7 @@ export class Crawler {
   /**
    * 単一ページのHTMLを取得する。
    * 5xxエラー時は最大2回リトライし、30秒でタイムアウトする。
+   * レスポンスサイズが MAX_RESPONSE_BYTES を超える場合は中断する。
    * @param url - 取得対象のURL
    * @returns HTMLテキスト
    * @throws {CrawlError} 取得失敗時
@@ -123,6 +157,7 @@ export class Crawler {
         const response = await fetch(url, {
           headers: { "User-Agent": this.userAgent },
           signal: controller.signal,
+          redirect: "follow",
         });
 
         clearTimeout(timeoutId);
@@ -139,7 +174,7 @@ export class Crawler {
           );
         }
 
-        return await response.text();
+        return await this.readResponseWithLimit(response, url);
       } catch (err) {
         clearTimeout(timeoutId);
 
@@ -296,6 +331,91 @@ export class Crawler {
     }
 
     return true;
+  }
+
+  /**
+   * URLのホスト名をDNS解決し、プライベートIPへのアクセスを防止する (SSRF対策)。
+   * @param url - 検証対象のURL
+   * @throws {CrawlError} プライベートIPに解決された場合
+   */
+  private async validateUrlSafety(url: string): Promise<void> {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+
+    // IPアドレスが直接指定されている場合
+    if (net.isIP(hostname)) {
+      if (isPrivateIP(hostname)) {
+        throw new CrawlError(
+          `Access to private IP address is blocked: ${hostname}`,
+          url
+        );
+      }
+      return;
+    }
+
+    // ホスト名をDNS解決してIPアドレスを検証
+    try {
+      const { address } = await dns.lookup(hostname);
+      if (isPrivateIP(address)) {
+        throw new CrawlError(
+          `Hostname '${hostname}' resolves to private IP address (${address}). Access blocked for security.`,
+          url
+        );
+      }
+    } catch (err) {
+      if (err instanceof CrawlError) throw err;
+      throw new CrawlError(
+        `DNS resolution failed for '${hostname}': ${err instanceof Error ? err.message : "Unknown error"}`,
+        url
+      );
+    }
+  }
+
+  /**
+   * レスポンスボディをサイズ上限付きで読み込む。
+   * MAX_RESPONSE_BYTES を超えた場合は読み込みを中断しエラーを投げる。
+   * @param response - fetchのレスポンス
+   * @param url - リクエスト元URL (エラーメッセージ用)
+   * @returns レスポンスのテキスト
+   * @throws {CrawlError} サイズ超過時
+   */
+  private async readResponseWithLimit(response: Response, url: string): Promise<string> {
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) {
+      throw new CrawlError(
+        `Response too large (Content-Length: ${contentLength} bytes, limit: ${MAX_RESPONSE_BYTES} bytes)`,
+        url
+      );
+    }
+
+    if (!response.body) {
+      return await response.text();
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > MAX_RESPONSE_BYTES) {
+          await reader.cancel();
+          throw new CrawlError(
+            `Response exceeded size limit (${MAX_RESPONSE_BYTES} bytes)`,
+            url
+          );
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const decoder = new TextDecoder("utf-8");
+    return chunks.map((c) => decoder.decode(c, { stream: true })).join("") + decoder.decode();
   }
 
   /** 指定ミリ秒間待機する */

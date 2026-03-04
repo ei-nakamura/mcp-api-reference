@@ -52,7 +52,11 @@ describe('CacheManager', () => {
   });
 
   it('load() reads and returns saved data', () => {
-    const docs = [{ id: 'api1:GET:/test', apiId: 'api1' }] as any[];
+    const docs = [{
+      id: 'api1:GET:/test', apiId: 'api1', category: 'test', method: 'GET' as const,
+      path: '/test', title: 'Test', description: '', parameters: [], responseFields: [],
+      examples: [], authentication: [], permissions: [], notes: [], sourceUrl: 'http://example.com',
+    }];
     const indexData = { key: 'val' };
     cache.save('api1', 'hash123', { documents: docs, indexData });
     const result = cache.load('api1');

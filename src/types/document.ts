@@ -1,8 +1,10 @@
 /**
  * @module types/document
- * @description エンドポイントドキュメントの型定義。
+ * @description エンドポイントドキュメントの型定義とZodスキーマ。
  * パーサーが抽出したAPI情報を保持するデータ構造を定義する。
+ * キャッシュからの復元時にZodスキーマでデータの完全性を検証する。
  */
+import { z } from "zod";
 
 /** サポートするHTTPメソッド */
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -38,6 +40,37 @@ export interface ExampleInfo {
   /** サンプルコードの内容 */
   content: string;
 }
+
+/** EndpointDocumentのZodスキーマ。キャッシュ復元時のデータ検証に使用する。 */
+export const EndpointDocumentSchema = z.object({
+  id: z.string(),
+  apiId: z.string(),
+  category: z.string(),
+  method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
+  path: z.string(),
+  title: z.string(),
+  description: z.string(),
+  parameters: z.array(z.object({
+    name: z.string(),
+    type: z.string(),
+    required: z.boolean(),
+    description: z.string(),
+  })),
+  responseFields: z.array(z.object({
+    name: z.string(),
+    type: z.string(),
+    description: z.string(),
+  })),
+  examples: z.array(z.object({
+    type: z.enum(["request", "response"]),
+    format: z.enum(["json", "curl", "url"]),
+    content: z.string(),
+  })),
+  authentication: z.array(z.string()),
+  permissions: z.array(z.string()),
+  notes: z.array(z.string()),
+  sourceUrl: z.string(),
+});
 
 /**
  * APIエンドポイントのドキュメント。
