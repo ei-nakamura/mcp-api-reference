@@ -2,6 +2,11 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Crawler } from '../../../src/core/crawler.js';
 import { Logger } from '../../../src/utils/logger.js';
 
+// SSRF検証で使用されるDNS lookupをモック (テスト環境ではDNS解決不可のため)
+vi.mock('node:dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue({ address: '93.184.216.34', family: 4 }),
+}));
+
 const logger = new Logger('error');
 
 const baseConfig = {
@@ -11,6 +16,19 @@ const baseConfig = {
   includePatterns: [] as string[],
   excludePatterns: [] as string[],
 };
+
+/** fetchモック用のヘッダーオブジェクト */
+const mockHeaders = { get: () => null };
+
+/** fetchモック用レスポンスを生成する */
+const mockResponse = (body: string, ok = true) => ({
+  ok,
+  status: ok ? 200 : 500,
+  statusText: ok ? 'OK' : 'Internal Server Error',
+  text: async () => body,
+  body: null,
+  headers: mockHeaders,
+});
 
 let mockFetch: ReturnType<typeof vi.fn>;
 
@@ -28,8 +46,8 @@ describe('Crawler', () => {
   describe('crawl()', () => {
     it('returns pages map with fetched HTML', async () => {
       mockFetch
-        .mockResolvedValueOnce({ ok: true, text: async () => '' }) // robots.txt
-        .mockResolvedValueOnce({ ok: true, text: async () => '<html>page</html>' }); // page
+        .mockResolvedValueOnce(mockResponse('')) // robots.txt
+        .mockResolvedValueOnce(mockResponse('<html>page</html>')); // page
 
       const crawler = new Crawler(logger);
       const result = await crawler.crawl(baseConfig);
@@ -42,8 +60,8 @@ describe('Crawler', () => {
     it('stops at maxPages limit', async () => {
       const pageHtml = '<html><a href="/page2">link</a><a href="/page3">link</a></html>';
       mockFetch
-        .mockResolvedValueOnce({ ok: true, text: async () => '' }) // robots.txt
-        .mockResolvedValueOnce({ ok: true, text: async () => pageHtml }); // start page
+        .mockResolvedValueOnce(mockResponse('')) // robots.txt
+        .mockResolvedValueOnce(mockResponse(pageHtml)); // start page
 
       const crawler = new Crawler(logger);
       const config = { ...baseConfig, maxPages: 1 };
@@ -56,8 +74,8 @@ describe('Crawler', () => {
       // page links back to itself
       const pageHtml = '<html><a href="https://example.com/">self-link</a></html>';
       mockFetch
-        .mockResolvedValueOnce({ ok: true, text: async () => '' }) // robots.txt
-        .mockResolvedValueOnce({ ok: true, text: async () => pageHtml }); // start page
+        .mockResolvedValueOnce(mockResponse('')) // robots.txt
+        .mockResolvedValueOnce(mockResponse(pageHtml)); // start page
 
       const crawler = new Crawler(logger);
       const result = await crawler.crawl(baseConfig);
@@ -70,7 +88,7 @@ describe('Crawler', () => {
 
     it('handles fetch error gracefully (retries, then skips)', async () => {
       mockFetch
-        .mockResolvedValueOnce({ ok: true, text: async () => '' }) // robots.txt
+        .mockResolvedValueOnce(mockResponse('')) // robots.txt
         .mockRejectedValue(new Error('Network error')); // all page fetches fail
 
       const crawler = new Crawler(logger);

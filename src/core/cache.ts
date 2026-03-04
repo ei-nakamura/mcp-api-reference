@@ -6,7 +6,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { EndpointDocument } from "../types/document.js";
+import { EndpointDocument, EndpointDocumentSchema } from "../types/document.js";
 import { CacheError } from "../types/errors.js";
 import { Logger } from "../utils/logger.js";
 
@@ -72,20 +72,28 @@ export class CacheManager {
 
   /**
    * キャッシュからドキュメントとインデックスデータを読み込む。
+   * ドキュメントデータはZodスキーマで検証し、不正なデータが混入していないか確認する。
    * @param apiId - API識別子
    * @returns キャッシュのドキュメントとインデックスデータ
-   * @throws {CacheError} 読み込み失敗時
+   * @throws {CacheError} 読み込み失敗時またはデータ検証失敗時
    */
   load(apiId: string): CacheLoadResult {
     const dir = this.getCacheDir(apiId);
     try {
       const documentsRaw = fs.readFileSync(path.join(dir, "documents.json"), "utf-8");
       const indexRaw = fs.readFileSync(path.join(dir, "index.json"), "utf-8");
-      const documents = JSON.parse(documentsRaw) as EndpointDocument[];
+      const parsed = JSON.parse(documentsRaw) as unknown;
+      const result = EndpointDocumentSchema.array().safeParse(parsed);
+      if (!result.success) {
+        throw new CacheError(
+          `Cache validation failed for ${apiId}: ${result.error.issues.map((i) => i.message).join(", ")}`
+        );
+      }
       const indexData = JSON.parse(indexRaw) as Record<string, unknown>;
       this.logger.info(`CacheManager: loaded cache for ${apiId}`);
-      return { documents, indexData };
+      return { documents: result.data, indexData };
     } catch (err) {
+      if (err instanceof CacheError) throw err;
       throw new CacheError(`Failed to load cache for ${apiId}: ${String(err)}`);
     }
   }

@@ -5,7 +5,8 @@
  * ID検索・API単位の取得・メタデータ管理・ディスク永続化を提供する。
  */
 import * as fs from "node:fs";
-import { EndpointDocument } from "../types/document.js";
+import { EndpointDocument, EndpointDocumentSchema } from "../types/document.js";
+import { CacheError } from "../types/errors.js";
 import { Logger } from "../utils/logger.js";
 
 /** APIのメタデータ (カテゴリ一覧、エンドポイント数) */
@@ -102,13 +103,21 @@ export class DocumentStore {
 
   /**
    * ディスクからJSONファイルを読み込み、ストアにドキュメントを復元する。
+   * Zodスキーマでデータの完全性を検証し、不正なデータを検出した場合はエラーを投げる。
    * @param apiId - API識別子
    * @param documentsPath - JSONファイルのパス
+   * @throws {CacheError} データ検証失敗時
    */
   loadFromDisk(apiId: string, documentsPath: string): void {
     const raw = fs.readFileSync(documentsPath, "utf-8");
-    const documents = JSON.parse(raw) as EndpointDocument[];
-    this.set(apiId, documents);
+    const parsed = JSON.parse(raw) as unknown;
+    const result = EndpointDocumentSchema.array().safeParse(parsed);
+    if (!result.success) {
+      throw new CacheError(
+        `Cache validation failed for ${apiId}: ${result.error.issues.map((i) => i.message).join(", ")}`
+      );
+    }
+    this.set(apiId, result.data);
   }
 
   /**

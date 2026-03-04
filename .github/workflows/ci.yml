@@ -16,6 +16,7 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: npm ci
+      - run: npm audit --audit-level=high --omit=dev
       - run: npm run lint
       - run: npm test
       - run: npm run build
