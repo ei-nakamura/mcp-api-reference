@@ -87,6 +87,7 @@ export class Crawler {
     const pages = new Map<string, string>();
     const visited = new Set<string>();
     const queue: string[] = [config.startUrl];
+    const queued = new Set<string>([config.startUrl]);
     const startOrigin = new URL(config.startUrl).origin;
     let skipped = 0;
 
@@ -113,8 +114,9 @@ export class Crawler {
 
         const links = this.extractLinks(html, url);
         for (const link of links) {
-          if (!visited.has(link) && !queue.includes(link)) {
+          if (!visited.has(link) && !queued.has(link)) {
             queue.push(link);
+            queued.add(link);
           }
         }
       } catch (err) {
@@ -128,6 +130,7 @@ export class Crawler {
     }
 
     visited.clear();
+    queued.clear();
     queue.length = 0;
 
     return {
@@ -389,7 +392,14 @@ export class Crawler {
     }
 
     if (!response.body) {
-      return await response.text();
+      const text = await response.text();
+      if (Buffer.byteLength(text, "utf-8") > MAX_RESPONSE_BYTES) {
+        throw new CrawlError(
+          `Response exceeded size limit (${MAX_RESPONSE_BYTES} bytes)`,
+          url
+        );
+      }
+      return text;
     }
 
     const reader = response.body.getReader();
@@ -414,8 +424,7 @@ export class Crawler {
       reader.releaseLock();
     }
 
-    const decoder = new TextDecoder("utf-8");
-    return chunks.map((c) => decoder.decode(c, { stream: true })).join("") + decoder.decode();
+    return Buffer.concat(chunks).toString("utf-8");
   }
 
   /** 指定ミリ秒間待機する */

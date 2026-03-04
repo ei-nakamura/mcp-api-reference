@@ -6,7 +6,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { EndpointDocument, EndpointDocumentSchema } from "../types/document.js";
+import { EndpointDocument, EndpointDocumentArraySchema } from "../types/document.js";
 import { CacheError } from "../types/errors.js";
 import { Logger } from "../utils/logger.js";
 
@@ -83,7 +83,7 @@ export class CacheManager {
       const documentsRaw = fs.readFileSync(path.join(dir, "documents.json"), "utf-8");
       const indexRaw = fs.readFileSync(path.join(dir, "index.json"), "utf-8");
       const parsed = JSON.parse(documentsRaw) as unknown;
-      const result = EndpointDocumentSchema.array().safeParse(parsed);
+      const result = EndpointDocumentArraySchema.safeParse(parsed);
       if (!result.success) {
         throw new CacheError(
           `Cache validation failed for ${apiId}: ${result.error.issues.map((i) => i.message).join(", ")}`

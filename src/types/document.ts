@@ -41,8 +41,8 @@ export interface ExampleInfo {
   content: string;
 }
 
-/** EndpointDocumentのZodスキーマ。キャッシュ復元時のデータ検証に使用する。 */
-export const EndpointDocumentSchema = z.object({
+/** 単一の EndpointDocument の Zod スキーマ */
+const EndpointDocumentObjectSchema = z.object({
   id: z.string(),
   apiId: z.string(),
   category: z.string(),
@@ -71,6 +71,12 @@ export const EndpointDocumentSchema = z.object({
   notes: z.array(z.string()),
   sourceUrl: z.string(),
 });
+
+/** EndpointDocumentのZodスキーマ。キャッシュ復元時のデータ検証に使用する。 */
+export const EndpointDocumentSchema = EndpointDocumentObjectSchema;
+
+/** EndpointDocument配列のZodスキーマ。毎回 .array() で生成するコストを避けるため事前構築。 */
+export const EndpointDocumentArraySchema = EndpointDocumentObjectSchema.array();
 
 /**
  * APIエンドポイントのドキュメント。
