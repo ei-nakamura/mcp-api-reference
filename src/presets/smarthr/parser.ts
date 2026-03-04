@@ -166,7 +166,7 @@ export class SmartHRParser implements SiteParser {
    */
   private extractSectionDescription(
     $section: cheerio.Cheerio<cheerio.Element>,
-    $: cheerio.CheerioAPI
+    _$: cheerio.CheerioAPI
   ): string {
     let description = "";
 
