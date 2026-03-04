@@ -9,6 +9,8 @@ import { kintoneConfig } from "./kintone/config.js";
 import { KintoneParser } from "./kintone/parser.js";
 import { backlogConfig } from "./backlog/config.js";
 import { BacklogParser } from "./backlog/parser.js";
+import { smarthrConfig } from "./smarthr/config.js";
+import { SmartHRParser } from "./smarthr/parser.js";
 
 /**
  * 全プリセットをParserRegistryに登録して返す。
@@ -21,6 +23,7 @@ export function createRegistryWithPresets(logger: Logger): ParserRegistry {
   const kintoneParser = new KintoneParser();
   registry.register(kintoneConfig.id, kintoneConfig, kintoneParser);
   registry.register(backlogConfig.id, backlogConfig, new BacklogParser());
+  registry.register(smarthrConfig.id, smarthrConfig, new SmartHRParser());
   return registry;
 }
 
@@ -28,3 +31,5 @@ export { kintoneConfig } from "./kintone/config.js";
 export { KintoneParser } from "./kintone/parser.js";
 export { backlogConfig } from "./backlog/config.js";
 export { BacklogParser } from "./backlog/parser.js";
+export { smarthrConfig } from "./smarthr/config.js";
+export { SmartHRParser } from "./smarthr/parser.js";
