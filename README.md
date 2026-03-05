@@ -85,6 +85,10 @@ A parser for the kintone REST API is built in as a preset. No additional configu
 
 A parser for the Backlog API is also available as a preset. No additional configuration required.
 
+### SmartHR API
+
+A parser for the SmartHR API is also available as a preset. No additional configuration required.
+
 ## Custom Sites
 
 You can add any API documentation site by specifying a JSON file with the `--config` option.
@@ -140,7 +144,8 @@ src/
 │   └── list-apis.ts      # list_apis tool
 ├── presets/
 │   ├── kintone/          # kintone preset
-│   └── backlog/          # Backlog preset
+│   ├── backlog/          # Backlog preset
+│   └── smarthr/          # SmartHR preset
 ├── formatters/
 │   └── response.ts       # MCP response formatter
 ├── types/                # Type definitions
